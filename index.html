@@ -67,7 +67,7 @@ function App(){
 
   useEffect(()=>{
     let q=null;try{const v=LS.get("spi-q");if(v)q=JSON.parse(v);}catch{}
-    setDb(q&&Array.isArray(q)&&q.length?q:DEFAULT_Q);
+    setDb(q&&Array.isArray(q)?q:DEFAULT_Q);
     try{const v=LS.get("spi-s");if(v)setStats(JSON.parse(v));}catch{}
     try{const v=LS.get("spi-rw");if(v)setRw(JSON.parse(v));}catch{}
     setLoaded(true);
@@ -126,7 +126,7 @@ function App(){
 
   const ts=useMemo(()=>{let t=0,c=0;Object.values(stats).forEach(s=>{t+=s.correct+s.wrong;c+=s.correct;});return{t,c,r:t?Math.round(c/t*100):0};},[stats]);
   const resetStats=()=>doConfirm("全ての成績データをリセットしますか？",()=>{save({},[]);showToast("成績をリセットしました。");});
-  const resetDb=()=>doConfirm("問題DBを初期状態に戻しますか？\n（難易度変更・削除がすべて元に戻ります）",()=>{saveDb(DEFAULT_Q);showToast("問題DBを初期状態に戻しました。");});
+  const resetDb=()=>doConfirm("すべての問題を削除しますか？\n（最初から入っている問題も含め、すべての問題が削除されます。この操作は元に戻せません）",()=>{saveDb([]);showToast("すべての問題を削除しました。");});
 
   const pill=active=>({padding:"6px 14px",borderRadius:8,border:"1.5px solid "+(active?C.accent:C.border),background:active?C.accentSoft:C.card,color:C.text,fontSize:13,fontWeight:active?600:400,cursor:"pointer"});
   const btn1={background:C.accent,color:"#fff",border:"none",borderRadius:10,padding:"14px 0",fontSize:15,fontWeight:600,width:"100%",cursor:"pointer",marginTop:16};
@@ -183,6 +183,10 @@ function App(){
   if(scr==="list"){let fl=db.filter(q=>(lfG==="all"||q.type===lfG)&&(lfD===0||q.difficulty===lfD));
     if(lfSort==="recent")fl=[...fl].sort((a,b)=>(stats[b.id]?.last||0)-(stats[a.id]?.last||0));else if(lfSort==="diff")fl=[...fl].sort((a,b)=>a.difficulty-b.difficulty);
     return <div style={{maxWidth:640,margin:"0 auto",padding:16}}>{overlay}
+      <div style={{position:"fixed",right:14,bottom:28,display:"flex",flexDirection:"column",gap:10,zIndex:50}}>
+        <button onClick={()=>window.scrollTo({top:0,behavior:"smooth"})} style={{width:46,height:46,borderRadius:23,border:"1.5px solid "+C.border,background:"#fff",color:C.accent,fontSize:20,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.18)"}}>↑</button>
+        <button onClick={()=>window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"})} style={{width:46,height:46,borderRadius:23,border:"1.5px solid "+C.border,background:"#fff",color:C.accent,fontSize:20,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.18)"}}>↓</button>
+      </div>
       <h1 style={{fontSize:22,fontWeight:700,margin:"0 0 4px",color:C.text}}>問題一覧</h1><p style={{fontSize:13,color:C.textDim,margin:"0 0 16px"}}>{fl.length}問表示中 / 全{db.length}問</p>
       <p style={lbl}>ジャンル</p><div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:12}}>{[["all","すべて"],...Object.entries(GL)].map(([k,l])=><button key={k} onClick={()=>setLfG(k)} style={pill(lfG===k)}>{l}</button>)}</div>
       <p style={lbl}>難易度</p><div style={{display:"flex",gap:4,marginBottom:12}}>{[0,1,2,3,4,5,6,7].map(d=><button key={d} onClick={()=>setLfD(d)} style={{...pill(lfD===d),flex:1}}>{d===0?"全":d}</button>)}</div>
@@ -242,7 +246,7 @@ function App(){
       <div style={{background:C.card,borderRadius:14,padding:"18px 16px",border:"1px solid "+C.border,marginBottom:16}}>
         <p style={{...lbl,margin:"0 0 10px",fontSize:13,fontWeight:700,color:C.text}}>エクスポート・リセット</p>
         <button style={{...btn2,marginTop:0}} onClick={doExport}>現在の問題をJSONへエクスポート</button>
-        <button style={{...btn2,color:C.warn,borderColor:C.warn}} onClick={resetDb}>問題DBを初期状態に戻す</button>
+        <button style={{...btn2,color:C.warn,borderColor:C.warn}} onClick={resetDb}>すべての問題を削除する</button>
         <button style={{...btn2,color:C.wrong,borderColor:C.wrong}} onClick={resetStats}>成績をリセット</button>
       </div>
 
