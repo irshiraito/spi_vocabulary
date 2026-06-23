@@ -60,6 +60,7 @@ function App(){
   const [lfG,setLfG]=useState("all");const [lfD,setLfD]=useState(0);const [lfSort,setLfSort]=useState("id");const [lex,setLex]=useState(null);
   const [db,setDb]=useState([]);const [stats,setStats]=useState({});const [rw,setRw]=useState([]);const [loaded,setLoaded]=useState(false);
   const [toast,setToast]=useState(null);const [cfm,setCfm]=useState(null);
+  const [impUrl,setImpUrl]=useState("");const [impText,setImpText]=useState("");
   const tmRef=useRef(null);const fileRef=useRef(null);
   const showToast=msg=>setToast(msg);const doConfirm=(msg,fn)=>setCfm({msg,fn});
 
@@ -96,7 +97,10 @@ function App(){
   const nextQ=()=>{if(ci+1>=qs.length){setDone(true);setScr("results");}else{setCi(ci+1);setTl(tmSec);setTmAct(true);setShowExp(false);}};
   const delQ=id=>{doConfirm("この問題を削除しますか？",()=>{const n=db.filter(q=>q.id!==id);saveDb(n);if(lex===id)setLex(null);showToast("問題を削除しました。");});};
 
-  const doImport=e=>{const f=e.target.files?.[0];if(!f)return;const reader=new FileReader();reader.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d)){showToast("エラー: JSON配列でない");return;}const maxId=db.length?Math.max(...db.map(q=>q.id)):0;const newQs=d.map((q,i)=>({...q,id:q.id||maxId+i+1}));const merged=[...db];newQs.forEach(nq=>{const idx=merged.findIndex(x=>x.id===nq.id);if(idx>=0)merged[idx]=nq;else merged.push(nq);});saveDb(merged);showToast(newQs.length+"問をインポートしました（合計"+merged.length+"問）");}catch{showToast("エラー: JSON読み込み失敗");}};reader.onerror=()=>showToast("ファイル読み込み失敗");reader.readAsText(f);if(fileRef.current)fileRef.current.value="";};
+  const mergeImport=jsonStr=>{try{const d=JSON.parse(jsonStr);if(!Array.isArray(d)){showToast("エラー: JSON配列でない");return false;}const maxId=db.length?Math.max(...db.map(q=>q.id)):0;const newQs=d.map((q,i)=>({...q,id:q.id||maxId+i+1}));const merged=[...db];newQs.forEach(nq=>{const idx=merged.findIndex(x=>x.id===nq.id);if(idx>=0)merged[idx]=nq;else merged.push(nq);});saveDb(merged);showToast(newQs.length+"問をインポートしました（合計"+merged.length+"問）");return true;}catch{showToast("エラー: JSONの読み込みに失敗しました");return false;}};
+  const doImport=e=>{const f=e.target.files?.[0];if(!f)return;const reader=new FileReader();reader.onload=ev=>{mergeImport(ev.target.result);};reader.onerror=()=>showToast("ファイル読み込み失敗");reader.readAsText(f);if(fileRef.current)fileRef.current.value="";};
+  const doImportText=()=>{if(!impText.trim()){showToast("テキストが空です");return;}if(mergeImport(impText))setImpText("");};
+  const doImportUrl=async()=>{if(!impUrl.trim()){showToast("URLが空です");return;}try{showToast("読み込み中...");const res=await fetch(impUrl.trim());if(!res.ok){showToast("エラー: "+res.status);return;}const txt=await res.text();if(mergeImport(txt))setImpUrl("");}catch(err){showToast("エラー: 取得失敗（"+err.message+"）");}};
   const doExport=()=>{try{const json=JSON.stringify(db,null,2);const blob=new Blob([json],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="spi-questions.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);showToast(db.length+"問をエクスポートしました");}catch{showToast("エクスポート失敗");}};
 
   const ts=useMemo(()=>{let t=0,c=0;Object.values(stats).forEach(s=>{t+=s.correct+s.wrong;c+=s.correct;});return{t,c,r:t?Math.round(c/t*100):0};},[stats]);
@@ -124,7 +128,7 @@ function App(){
     <button style={btn1} onClick={startQuiz}>スタート</button>
     <button style={btn2} onClick={()=>setScr("list")}>問題一覧</button>
     <button style={btn2} onClick={()=>setScr("stats")}>成績を見る</button>
-    <div style={{marginTop:20,borderTop:"1px solid "+C.border,paddingTop:16}}><p style={{...lbl,marginBottom:8}}>問題データ管理</p><input ref={fileRef} type="file" accept=".json" onChange={doImport} style={{display:"none"}}/><button style={{...btn2,marginTop:0}} onClick={()=>{if(fileRef.current){fileRef.current.value="";fileRef.current.click();}}}>JSONからインポート</button><button style={btn2} onClick={doExport}>JSONへエクスポート</button><button style={{...btn2,color:C.warn,borderColor:C.warn}} onClick={resetDb}>問題DBをリセット</button></div>
+    <button style={btn2} onClick={()=>setScr("import")}>問題データ管理</button>
   </div>;
 
   if(scr==="quiz"){const q=qs[ci],ca=ans[ci],answered=!!ca||showExp,pct=tmOn?(tl/tmSec)*100:100,lines=q.question.split("\n"),isN=mode==="normal";
@@ -183,6 +187,43 @@ function App(){
       {Object.entries(GL).map(([k,l])=>{const g=bg_[k]||{correct:0,wrong:0},t=g.correct+g.wrong,r=t?Math.round(g.correct/t*100):0;return <div key={k} style={{background:C.card,borderRadius:12,padding:"14px 16px",marginBottom:8,border:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:14,color:C.text}}>{l}</span><div style={{textAlign:"right"}}><span style={{fontSize:16,fontWeight:700,color:r>=70?C.correct:r>=40?C.warn:t?C.wrong:C.textDim}}>{t?r+"%":"—"}</span><span style={{fontSize:11,color:C.textDim,marginLeft:8}}>{t}回</span></div></div>;})}
       {qst.length>0&&<><p style={{...lbl,marginTop:20}}>苦手な問題</p>{qst.slice(0,10).map(q=><div key={q.id} style={{background:C.card,borderRadius:12,padding:"12px 16px",marginBottom:8,border:"1px solid "+C.border}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><div style={{display:"flex",gap:4}}><Tag bg={C.accentSoft} fg={C.accent}>{GL[q.type]}</Tag><Tag bg={C.warn+"18"} fg={C.warn}>Lv.{q.difficulty}</Tag></div><span style={{fontSize:14,fontWeight:700,color:q.rate>=70?C.correct:q.rate>=40?C.warn:C.wrong}}>{q.rate}%</span></div><p style={{fontSize:12,color:C.textMid,margin:0,lineHeight:1.5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{q.question.split("\n")[0]}</p><p style={{fontSize:11,color:C.textDim,margin:"2px 0 0"}}>○{q.correct}回 ✗{q.wrong}回</p></div>)}</>}
       <button style={btn1} onClick={()=>setScr("home")}>ホームに戻る</button><button style={{...btn2,color:C.wrong,borderColor:C.wrong}} onClick={resetStats}>成績をリセット</button>
+    </div>;
+  }
+  if(scr==="import"){
+    const ta={width:"100%",minHeight:120,borderRadius:10,border:"1.5px solid "+C.border,padding:12,fontSize:13,fontFamily:"inherit",color:C.text,background:C.card,resize:"vertical"};
+    const inp={width:"100%",borderRadius:10,border:"1.5px solid "+C.border,padding:"12px 14px",fontSize:13,color:C.text,background:C.card};
+    return <div style={{maxWidth:640,margin:"0 auto",padding:16}}>{overlay}
+      <h1 style={{fontSize:22,fontWeight:700,margin:"0 0 4px",color:C.text}}>問題データ管理</h1>
+      <p style={{fontSize:13,color:C.textDim,margin:"0 0 20px"}}>現在 {db.length}問</p>
+
+      <div style={{background:C.card,borderRadius:14,padding:"18px 16px",border:"1px solid "+C.border,marginBottom:16}}>
+        <p style={{...lbl,margin:"0 0 10px",fontSize:13,fontWeight:700,color:C.text}}>URLから取得</p>
+        <p style={{fontSize:12,color:C.textDim,margin:"0 0 8px"}}>問題JSONを配置したURL（GitHub等）を入力してください</p>
+        <input type="text" value={impUrl} onChange={e=>setImpUrl(e.target.value)} placeholder="https://example.com/questions.json" style={inp}/>
+        <button style={{...btn1,marginTop:10}} onClick={doImportUrl}>URLから取得してインポート</button>
+      </div>
+
+      <div style={{background:C.card,borderRadius:14,padding:"18px 16px",border:"1px solid "+C.border,marginBottom:16}}>
+        <p style={{...lbl,margin:"0 0 10px",fontSize:13,fontWeight:700,color:C.text}}>テキスト貼り付け</p>
+        <p style={{fontSize:12,color:C.textDim,margin:"0 0 8px"}}>JSON形式のテキストを貼り付けてください</p>
+        <textarea value={impText} onChange={e=>setImpText(e.target.value)} placeholder={'[\n  {"id":1, "type":"meaning", ...}\n]'} style={ta}/>
+        <button style={{...btn1,marginTop:10}} onClick={doImportText}>テキストからインポート</button>
+      </div>
+
+      <div style={{background:C.card,borderRadius:14,padding:"18px 16px",border:"1px solid "+C.border,marginBottom:16}}>
+        <p style={{...lbl,margin:"0 0 10px",fontSize:13,fontWeight:700,color:C.text}}>ファイルから読み込み</p>
+        <input ref={fileRef} type="file" accept=".json" onChange={doImport} style={{display:"none"}}/>
+        <button style={{...btn2,marginTop:0}} onClick={()=>{if(fileRef.current){fileRef.current.value="";fileRef.current.click();}}}>JSONファイルを選択</button>
+      </div>
+
+      <div style={{background:C.card,borderRadius:14,padding:"18px 16px",border:"1px solid "+C.border,marginBottom:16}}>
+        <p style={{...lbl,margin:"0 0 10px",fontSize:13,fontWeight:700,color:C.text}}>エクスポート・リセット</p>
+        <button style={{...btn2,marginTop:0}} onClick={doExport}>現在の問題をJSONへエクスポート</button>
+        <button style={{...btn2,color:C.warn,borderColor:C.warn}} onClick={resetDb}>問題DBを初期状態に戻す</button>
+        <button style={{...btn2,color:C.wrong,borderColor:C.wrong}} onClick={resetStats}>成績をリセット</button>
+      </div>
+
+      <button style={btn1} onClick={()=>setScr("home")}>ホームに戻る</button>
     </div>;
   }
   return null;
