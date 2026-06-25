@@ -60,7 +60,7 @@ function App(){
   const [lfG,setLfG]=useState("all");const [lfD,setLfD]=useState(0);const [lfSort,setLfSort]=useState("id");const [lex,setLex]=useState(null);
   const [db,setDb]=useState([]);const [stats,setStats]=useState({});const [rw,setRw]=useState([]);const [loaded,setLoaded]=useState(false);
   const [toast,setToast]=useState(null);const [cfm,setCfm]=useState(null);
-  const [impUrl,setImpUrl]=useState("");const [impText,setImpText]=useState("");
+  const [impUrl,setImpUrl]=useState("");const [impText,setImpText]=useState("");const [statsText,setStatsText]=useState("");
   const [editQid,setEditQid]=useState(null);const [editOpts,setEditOpts]=useState([]);const [editExpl,setEditExpl]=useState("");const [editWrongs,setEditWrongs]=useState([]);
   const tmRef=useRef(null);const fileRef=useRef(null);
   const showToast=msg=>setToast(msg);const doConfirm=(msg,fn)=>setCfm({msg,fn});
@@ -127,6 +127,8 @@ function App(){
   const ts=useMemo(()=>{let t=0,c=0;Object.values(stats).forEach(s=>{t+=s.correct+s.wrong;c+=s.correct;});return{t,c,r:t?Math.round(c/t*100):0};},[stats]);
   const resetStats=()=>doConfirm("全ての成績データをリセットしますか？",()=>{save({},[]);showToast("成績をリセットしました。");});
   const resetDb=()=>doConfirm("すべての問題を削除しますか？\n（最初から入っている問題も含め、すべての問題が削除されます。この操作は元に戻せません）",()=>{saveDb([]);showToast("すべての問題を削除しました。");});
+  const exportStatsText=()=>{const now=new Date();const ts=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0")+" "+String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");const lines=["SPI_STATS_V1","# "+ts,"# ID:正解:不正解:最終解答日時"];Object.entries(stats).forEach(([id,s])=>{lines.push(id+":"+s.correct+":"+s.wrong+":"+(s.last||0));});lines.push("---");lines.push("# 直近の間違い");lines.push(rw.length?rw.join(","):"(なし)");setStatsText(lines.join("\n"));showToast("成績データをテキストに変換しました。コピーしてお使いください。");};
+  const importStatsText=()=>{if(!statsText.trim()){showToast("テキストが空です");return;}const lines=statsText.trim().split("\n");if(!lines[0]||!lines[0].startsWith("SPI_STATS_V1")){showToast("エラー: 成績データの形式が正しくありません（先頭行にSPI_STATS_V1が必要です）");return;}let ns={},nr=[],section="stats";for(let i=1;i<lines.length;i++){const ln=lines[i].trim();if(!ln||ln.startsWith("#"))continue;if(ln==="---"){section="rw";continue;}if(section==="stats"){const p=ln.split(":");if(p.length>=3){const id=p[0],c=parseInt(p[1])||0,w=parseInt(p[2])||0,l=parseInt(p[3])||0;ns[id]={correct:c,wrong:w,last:l};}}else if(section==="rw"&&ln!=="(なし)"){nr=ln.split(",").map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));}}save(ns,nr);setStatsText("");showToast("成績データをインポートしました（"+Object.keys(ns).length+"問分）");};
 
   const pill=active=>({padding:"6px 14px",borderRadius:8,border:"1.5px solid "+(active?C.accent:C.border),background:active?C.accentSoft:C.card,color:C.text,fontSize:13,fontWeight:active?600:400,cursor:"pointer"});
   const btn1={background:C.accent,color:"#fff",border:"none",borderRadius:10,padding:"14px 0",fontSize:15,fontWeight:600,width:"100%",cursor:"pointer",marginTop:16};
@@ -150,6 +152,7 @@ function App(){
     <button style={btn2} onClick={()=>setScr("list")}>問題一覧</button>
     <button style={btn2} onClick={()=>setScr("stats")}>成績を見る</button>
     <button style={btn2} onClick={()=>setScr("import")}>問題データ管理</button>
+    <button style={{...btn2,marginTop:20,color:C.textDim,borderColor:C.border}} onClick={()=>setScr("help")}>ヘルプ</button>
   </div>;
 
   if(scr==="quiz"){const q=qs[ci],ca=ans[ci],answered=!!ca||showExp,pct=tmOn?(tl/tmSec)*100:100,lines=q.question.split("\n"),isN=mode==="normal";
@@ -244,10 +247,91 @@ function App(){
       </div>
 
       <div style={{background:C.card,borderRadius:14,padding:"18px 16px",border:"1px solid "+C.border,marginBottom:16}}>
+        <p style={{...lbl,margin:"0 0 10px",fontSize:13,fontWeight:700,color:C.text}}>成績データのバックアップ</p>
+        <p style={{fontSize:12,color:C.textDim,margin:"0 0 8px"}}>成績をテキストとしてコピー保存したり、別の端末に貼り付けて復元できます</p>
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <button style={{...btn2,marginTop:0,flex:1}} onClick={exportStatsText}>成績をテキスト化</button>
+          <button style={{...btn2,marginTop:0,flex:1}} onClick={importStatsText}>テキストから復元</button>
+        </div>
+        {statsText&&<textarea value={statsText} onChange={e=>setStatsText(e.target.value)} style={{...ta,minHeight:150,fontSize:12}} onClick={e=>e.target.select()}/>}
+        {!statsText&&<textarea value={statsText} onChange={e=>setStatsText(e.target.value)} placeholder={"「成績をテキスト化」を押すとここに成績データが表示されます。\n別の端末から復元する場合は、コピーしたテキストをここに貼り付けてから「テキストから復元」を押してください。"} style={{...ta,minHeight:80,fontSize:12}}/>}
+      </div>
+
+      <div style={{background:C.card,borderRadius:14,padding:"18px 16px",border:"1px solid "+C.border,marginBottom:16}}>
         <p style={{...lbl,margin:"0 0 10px",fontSize:13,fontWeight:700,color:C.text}}>エクスポート・リセット</p>
         <button style={{...btn2,marginTop:0}} onClick={doExport}>現在の問題をJSONへエクスポート</button>
         <button style={{...btn2,color:C.warn,borderColor:C.warn}} onClick={resetDb}>すべての問題を削除する</button>
         <button style={{...btn2,color:C.wrong,borderColor:C.wrong}} onClick={resetStats}>成績をリセット</button>
+      </div>
+
+      <button style={btn1} onClick={()=>setScr("home")}>ホームに戻る</button>
+    </div>;
+  }
+
+  if(scr==="help"){
+    const sec={background:C.card,borderRadius:14,padding:"18px 16px",border:"1px solid "+C.border,marginBottom:16};
+    const h2={fontSize:15,fontWeight:700,color:C.text,margin:"0 0 10px"};
+    const p_={fontSize:13,lineHeight:1.8,color:C.textMid,margin:"0 0 8px"};
+    const em={fontWeight:600,color:C.text};
+    const url_="https://raw.githubusercontent.com/irshiraito/spi_vocabulary/refs/heads/main/spi-questions%20-399.json";
+    return <div style={{maxWidth:640,margin:"0 auto",padding:16}}>{overlay}
+      <h1 style={{fontSize:22,fontWeight:700,margin:"0 0 20px",color:C.text}}>ヘルプ</h1>
+
+      <div style={{...sec,background:C.accent+"0c",border:"1.5px solid "+C.accent}}>
+        <p style={{...h2,color:C.accent}}>初めてこのサイトを開いた方へ</p>
+        <p style={p_}>初回は<span style={em}>サンプル問題（105問）</span>のみが入っています。最新の問題リストを使うには、以下の手順を行ってください。</p>
+        <p style={p_}><span style={em}>手順1：</span>ホーム画面 →「問題データ管理」→「すべての問題を削除する」で初期データを削除します。</p>
+        <p style={p_}><span style={em}>手順2：</span>同じ画面の「URLから取得」に以下のURLを入力し、「URLから取得してインポート」を押します。</p>
+        <div style={{background:"#fff",borderRadius:8,padding:"10px 12px",margin:"8px 0",border:"1px solid "+C.border,wordBreak:"break-all"}} onClick={e=>{if(navigator.clipboard){navigator.clipboard.writeText(url_);showToast("URLをコピーしました");}}}><p style={{fontSize:11,color:C.accent,margin:"0 0 4px",fontWeight:600}}>タップでコピー</p><p style={{fontSize:12,color:C.text,margin:0,lineHeight:1.5}}>{url_}</p></div>
+        <p style={p_}>これで最新の問題が全てインポートされます。</p>
+      </div>
+
+      <div style={sec}>
+        <p style={h2}>出題モード</p>
+        <p style={p_}><span style={em}>通常モード：</span>SPI本番に近い形式です。難易度が低い問題から段階的に出題され、すべて回答後にまとめて結果が表示されます。解答中は難易度が表示されません。</p>
+        <p style={p_}><span style={em}>未出題・出題回数が少ない問題：</span>まだ解いたことのない問題や、解いた回数が少ない問題を優先して出題します。全問題を満遍なく練習したいときに有効です。</p>
+        <p style={p_}><span style={em}>難易度指定：</span>1〜7の中から難易度を選んで出題します。</p>
+        <p style={p_}><span style={em}>ジャンル指定：</span>意味・用法・2語の関係・逆引き・熟語の成り立ちの中からジャンルを選んで出題します。</p>
+        <p style={p_}><span style={em}>苦手問題：</span>正答率が低い問題を優先して出題します。一度は解いたことがある問題が対象です。</p>
+        <p style={p_}><span style={em}>直近の間違い：</span>最近間違えた問題から出題します。直前の復習に便利です。</p>
+      </div>
+
+      <div style={sec}>
+        <p style={h2}>出題設定</p>
+        <p style={p_}><span style={em}>出題数：</span>5/10/15/20問から選択できます。</p>
+        <p style={p_}><span style={em}>制限時間：</span>1問あたりの制限時間を10/15/20秒、またはなしに設定できます。時間切れの場合は不正解扱いになります。</p>
+        <p style={p_}><span style={em}>選択肢シャッフル：</span>ONにすると、出題のたびに選択肢の並び順がランダムに変わります。選択肢の位置を覚えてしまうのを防げます。</p>
+      </div>
+
+      <div style={sec}>
+        <p style={h2}>問題一覧</p>
+        <p style={p_}>登録されている全問題を一覧表示し、ジャンル・難易度でフィルターしたり、デフォルト・最近解いた順・難易度順で並べ替えたりできます。</p>
+        <p style={p_}>各問題をタップして展開すると、問題文・選択肢・解説の確認に加え、以下の操作が可能です。</p>
+        <p style={p_}><span style={em}>難易度調整：</span>−/＋ボタンで1段階ずつ変更できます。</p>
+        <p style={p_}><span style={em}>編集：</span>選択肢のテキストや解説を直接修正できます。</p>
+        <p style={p_}><span style={em}>削除：</span>不要な問題をリストから除外できます。</p>
+        <p style={p_}>画面右下の ↑/↓ ボタンでページの先頭・末尾にジャンプできます。</p>
+      </div>
+
+      <div style={sec}>
+        <p style={h2}>成績</p>
+        <p style={p_}>ジャンル別の正答率、苦手な問題ランキングを確認できます。</p>
+        <p style={p_}>成績データはお使いのブラウザ内（localStorage）に保存されるため、<span style={em}>同じ端末・同じブラウザ</span>で開けば成績が引き継がれます。異なる端末間では自動で共有されません。</p>
+      </div>
+
+      <div style={sec}>
+        <p style={h2}>問題データ管理</p>
+        <p style={p_}><span style={em}>URLから取得：</span>GitHub等に配置した問題JSONのURLを入力してインポートします。スマートフォンでの問題追加に最も便利な方法です。</p>
+        <p style={p_}><span style={em}>テキスト貼り付け：</span>JSON形式の問題データをテキストとして貼り付けてインポートします。</p>
+        <p style={p_}><span style={em}>ファイルから読み込み：</span>PCに保存した.jsonファイルを選択してインポートします。</p>
+        <p style={p_}><span style={em}>成績データのバックアップ：</span>成績データをテキスト形式でコピー保存・復元できます。別の端末への成績移行にも使えます。なお復元時は現在の成績を<span style={em}>完全に上書き</span>しますのでご注意ください。</p>
+        <p style={p_}><span style={em}>エクスポート：</span>現在の問題データをJSONファイルとしてダウンロードします。</p>
+        <p style={p_}><span style={em}>問題の削除・成績リセット：</span>登録されている全問題の削除、または成績データのリセットを行います。</p>
+      </div>
+
+      <div style={sec}>
+        <p style={h2}>結果画面での操作</p>
+        <p style={p_}>回答後の結果画面では、各問題の番号ボタンをタップすると詳細が展開され、解説の確認に加えて難易度の調整や選択肢・解説の編集が行えます。</p>
       </div>
 
       <button style={btn1} onClick={()=>setScr("home")}>ホームに戻る</button>
