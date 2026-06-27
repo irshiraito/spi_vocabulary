@@ -61,7 +61,7 @@ function App(){
   const [db,setDb]=useState([]);const [stats,setStats]=useState({});const [rw,setRw]=useState([]);const [loaded,setLoaded]=useState(false);
   const [toast,setToast]=useState(null);const [cfm,setCfm]=useState(null);
   const [impUrl,setImpUrl]=useState("");const [impText,setImpText]=useState("");const [statsText,setStatsText]=useState("");
-  const [editQid,setEditQid]=useState(null);const [editOpts,setEditOpts]=useState([]);const [editExpl,setEditExpl]=useState("");const [editWrongs,setEditWrongs]=useState([]);
+  const [editQid,setEditQid]=useState(null);const [editQuestion,setEditQuestion]=useState("");const [editOpts,setEditOpts]=useState([]);const [editExpl,setEditExpl]=useState("");const [editWrongs,setEditWrongs]=useState([]);
   const tmRef=useRef(null);const fileRef=useRef(null);
   const showToast=msg=>setToast(msg);const doConfirm=(msg,fn)=>setCfm({msg,fn});
 
@@ -104,13 +104,16 @@ function App(){
   const doImportUrl=async()=>{if(!impUrl.trim()){showToast("URLが空です");return;}try{showToast("読み込み中...");const res=await fetch(impUrl.trim());if(!res.ok){showToast("エラー: "+res.status);return;}const txt=await res.text();if(mergeImport(txt))setImpUrl("");}catch(err){showToast("エラー: 取得失敗（"+err.message+"）");}};
   const doExport=()=>{try{const json=JSON.stringify(db,null,2);const blob=new Blob([json],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="spi-questions.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);showToast(db.length+"問をエクスポートしました");}catch{showToast("エクスポート失敗");}};
 
-  const startEdit=q=>{setEditQid(q.id);setEditOpts([...q.options]);setEditExpl(q.explanation||"");const wrongIdx=q.options.map((_,i)=>i).filter(i=>i!==q.answer);const we=q.wrongExplanations||[];setEditWrongs(wrongIdx.map((_,j)=>we[j]||""));};
+  const startEdit=q=>{setEditQid(q.id);setEditQuestion(q.question||"");setEditOpts([...q.options]);setEditExpl(q.explanation||"");const wrongIdx=q.options.map((_,i)=>i).filter(i=>i!==q.answer);const we=q.wrongExplanations||[];setEditWrongs(wrongIdx.map((_,j)=>we[j]||""));};
   const cancelEdit=()=>setEditQid(null);
-  const saveEdit=q=>{const n=db.map(x=>x.id===q.id?{...x,options:editOpts,explanation:editExpl,wrongExplanations:editWrongs}:x);saveDb(n);setEditQid(null);showToast("問題を更新しました。");};
+  const saveEdit=q=>{const n=db.map(x=>x.id===q.id?{...x,question:editQuestion,options:editOpts,explanation:editExpl,wrongExplanations:editWrongs}:x);saveDb(n);setEditQid(null);showToast("問題を更新しました。");};
   const editInp={flex:1,fontSize:13,padding:"8px 10px",borderRadius:8,border:"1.5px solid "+C.border,color:C.text,background:"#fff"};
   const editTa={width:"100%",minHeight:70,fontSize:13,padding:"8px 10px",borderRadius:8,border:"1.5px solid "+C.border,color:C.text,background:"#fff",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"};
   const renderEditPanel=q=>{const wrongIdx=q.options.map((_,i)=>i).filter(i=>i!==q.answer);return <div onClick={e=>e.stopPropagation()} style={{marginTop:10,background:C.accentSoft,borderRadius:10,padding:"12px 14px"}}>
-    <p style={{fontSize:12,fontWeight:700,color:C.accent,margin:"0 0 8px"}}>選択肢・解説を編集</p>
+    <p style={{fontSize:12,fontWeight:700,color:C.accent,margin:"0 0 8px"}}>問題を編集</p>
+    <p style={{fontSize:11,fontWeight:600,color:C.textMid,margin:"0 0 4px"}}>問題文</p>
+    <textarea value={editQuestion} onChange={e=>setEditQuestion(e.target.value)} style={{...editTa,minHeight:60,marginBottom:10}}/>
+    <p style={{fontSize:11,fontWeight:600,color:C.textMid,margin:"0 0 4px"}}>選択肢</p>
     {editOpts.map((o,i)=><div key={i} style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}><span style={{fontSize:13,fontWeight:700,color:i===q.answer?C.correct:C.textMid,width:18,flexShrink:0}}>{OPT_[i]}</span><input value={o} onChange={e=>{const n=[...editOpts];n[i]=e.target.value;setEditOpts(n);}} style={editInp}/></div>)}
     <p style={{fontSize:11,fontWeight:600,color:C.textMid,margin:"10px 0 4px"}}>解説（正解の理由）</p>
     <textarea value={editExpl} onChange={e=>setEditExpl(e.target.value)} style={editTa}/>
